@@ -1,0 +1,293 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+<style>
+    .file-input {
+        display: none;
+    }
+
+    .file-input-label {
+        cursor: pointer;
+        color: green;
+    }
+</style>
+
+<div class="chat">
+    <div class="sidebar">
+        <div class="search">
+            <input type="text" placeholder="Ara..">
+            <i class="fa fa-search" aria-hidden="true"></i>
+        </div>
+        <div class="contacts">
+            <ul>
+                <li>
+                    <a href="#">
+                        <img src="~/images/user.png" />
+                        <div class="contact">
+                            <div class="name">Deneme Çetinkaya</div>
+                            <div class="message">Merhaba, bu bir test mesajıdır..</div>
+                        </div>
+                        <div class="notification"></div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="content">
+        <div class="message-header">
+            <div class="user-info">
+                <img src="~/images/user.png" />
+                <div class="user">
+                    <div class="name">Admin</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="message-content" id="messages">
+        </div>
+
+        <div class="message-form">
+            <ul>
+
+                <li class="input">
+                    <input id="message_input" type="text" placeholder="Bir şeyler yaz..">
+                </li>
+                <li class="emoji-btn">
+                    <a id="" href="#" onclick="uploadFile()"><i class="fa fa-paper-plane" aria-hidden="true"></i></a>
+                </li>
+                <li class="sound-btn">
+                    <a href="#" id="startRecordBtn">
+                        <i class="fa fa-microphone" aria-hidden="true"></i>
+                    </a>
+                </li>
+                <li class="sound-btn">
+                    <a href="#" id="stopRecordBtn">
+                        <i class="fa fa-microphone-slash" aria-hidden="true"></i>
+                    </a>
+                </li>
+
+                <li class="image-btn">
+                    <input type="file" id="fileInput" class="file-input">
+                    <label for="fileInput" class="file-input-label" style="">
+                        <i class="fa fa-image" aria-hidden="true"></i>
+                    </label>
+                </li>
+
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+@section Scripts{
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/cartHub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        async function start() {
+            try {
+                await connection.start();
+                console.log("connected");
+            } catch (err) {
+                console.log(err);
+                setTimeout(start, 5000);
+            }
+        };
+
+        connection.onclose(async () => {
+            await start();
+        });
+
+        start();
+
+        $().ready(function () {
+            connection.on("ReceiveMessageAdmin", function (name, message) {
+                console.log(name + " " + message);
+                if ("@User.Identity.Name" == name) {
+                    $("#messages").append('<div class="message me"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                } else {
+                    $("#messages").append('<div class="message"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                }
+            });
+        });
+
+        $().ready(function () {
+            connection.on("ReceiveImageAdmin", function (name, message) {
+
+                try {
+                    if ("@User.Identity.Name" == name) {
+                        $("#messages").append('<div class="message me"><div class="bubble"><img style="width:540px !important; height:auto !important;" src="/incontent/' + (message) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                    } else {
+                        $("#messages").append('<div class="message"><div class="bubble"><img style="width:540px !important; height:auto !important;" src="/incontent/' + (message) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                    }
+                } catch (err) {
+                    console.log(err);
+                }
+
+            });
+        });
+        function uploadFile() {
+
+            var message = $("#message_input").val();
+            var fileInputValue = $("#fileInput").val();
+
+            if (fileInputValue.length != 0) {
+                var fileInput = document.getElementById('fileInput');
+                var file = fileInput.files[0];
+                var formData = new FormData();
+                formData.append('file', file);
+
+                $.ajax({
+                    url: '/Admin/Yonetici/Upload',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    type: 'POST',
+                    success: function (data) {
+                        try {
+                            var name = "@User.Identity.Name"
+                            var message = data;
+                            connection.invoke("SendImage", name, message);
+                            $("#messages").append('<div class="message me"><div class="bubble"><img style="width:540px !important; height:auto !important;" src="/incontent/' + (data) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                });
+
+
+            } if (message.length != 0) {
+
+                //$("#btnSendMessage").click(function () {
+                try {
+                    var name = "@User.Identity.Name";
+                    var message = $("#message_input").val();
+                    connection.invoke("SendMessage", "@User.Identity.Name", message);
+                    $("#messages").append('<div class="message me"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                } catch (err) {
+                    console.log(err);
+                }
+                //});
+            }
+            uploadRecording();
+
+        }
+
+
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        const startRecordBtn = document.getElementById('startRecordBtn');
+        const stopRecordBtn = document.getElementById('stopRecordBtn');
+        //const uploadBtn = document.getElementById('uploadBtn');
+        const recordedAudio = document.getElementById('recordedAudio');
+
+        startRecordBtn.addEventListener('click', startRecording);
+        stopRecordBtn.addEventListener('click', stopRecording);
+        //uploadBtn.addEventListener('click', uploadRecording);
+
+        function startRecording() {
+            const constraints = { audio: true };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+                    mediaRecorder.start();
+                })
+                .catch(error => {
+                    console.error('Error accessing microphone:', error);
+                });
+
+            startRecordBtn.disabled = true;
+            stopRecordBtn.disabled = false;
+        }
+
+
+
+        function stopRecording() {
+            mediaRecorder.stop();
+
+            startRecordBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+        }
+
+        function uploadRecording() {
+            stopRecording();
+
+            if (recordedChunks.length === 0) {
+                console.error('No recorded data available.');
+                return;
+            }
+
+            const blob = new Blob(recordedChunks, { type: 'audio/wav' });
+
+            function generateRandomString(length) {
+                var result = '';
+                var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                for (var i = 0; i < length; i++) {
+                    result += characters.charAt(Math.floor(Math.random() * characters.length));
+                }
+                return result;
+            }
+
+            var fileName = 'recorded' + generateRandomString(5) + '.wav';
+            const formData = new FormData();
+            formData.append('voiceFile', blob, fileName);
+
+            $.ajax({
+                url: '/Admin/Yonetici/UploadSound',
+                data: formData,
+                processData: false,
+                contentType: false,
+                type: 'POST',
+                success: function (data) {
+                    console.log(data);
+                    var urlCopy = URL.createObjectURL(blob);
+                    var path = "/soundContent/" + data;
+                    try {
+                        var name = "@User.Identity.Name";
+                        connection.invoke("SendSound", "@User.Identity.Name", path);
+                        $("#messages").append('<div class="message me"><div class="bubble"><audio src="' + urlCopy + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                        console.log(urlCopy);
+                    } catch (err) {
+                        console.log(err);
+                    }
+
+
+
+                }
+            });
+
+            recordedChunks = [];
+            recordedAudio.src = '';
+        }
+
+
+        connection.on("ReceiveSoundtoadmin", function (name, message) {
+
+            try {
+                console.log("try ın içine girdi");
+                if ("@User.Identity.Name" == name) {
+                    $("#messages").append('<div class="message me"><div class="bubble"><audio src="' + message + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                } else {
+                    $("#messages").append('<div class="message"><div class="bubble"><audio src="' + message + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                }
+            } catch (err) {
+                console.log(err);
+            }
+
+
+        });
+
+    </script>
+}

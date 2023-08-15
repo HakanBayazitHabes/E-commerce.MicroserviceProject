@@ -1,0 +1,338 @@
+﻿@model IEnumerable<ProductDto>
+<style>
+    .file-input {
+        display: none;
+    }
+
+    .file-input-label {
+        cursor: pointer;
+        color: green;
+    }
+</style>
+<form>
+    <div class="row">
+        <div class="col-9">
+            <div class="row">
+                @foreach (var product in Model)
+                {
+                    <div class="col-4 ">
+                        <div class="p-0 my-3 border">
+                            <div class="card">
+
+                                <img src="~/Uploads/@product.ImageUrl" class="card-img-top" alt="@product.ImageUrl">
+                                <div class="card-body">
+                                    <h3 class="card-title text-success">@product.Name</h3>
+                                    <span class="badge badge-light mb-2 ">@product.CategoryName</span>
+                                    <p class="card-text">@Html.Raw(product.Description)</p>
+                                    <div class="row">
+                                        <div class="col pt-1">
+                                            <span style="font-size:23px;">@string.Format("{0:c}", product.Price)</span>
+                                        </div>
+                                        <div class="col">
+                                            <a asp-action="Details" asp-route-productId="@product.ProductId"
+                                               class="btn btn-success form-control">Details</a>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+
+        </div>
+        <div class="col-3">
+            <div class="row">
+                <div class="col-7">
+                </div>
+                <div class="col-5">
+                    <div class="chat">
+                        <div class="sidebar" style="background:#fff;">
+                            <div class="content" style="width:400px !important;">
+                                <div class="message-header">
+                                    <div class="user-info">
+                                        <img src="~/images/user.png" />
+                                        <div class="user">
+                                            <div class="name">@User.Identity.Name</div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <div class="message-content" id="messages">
+                                    <div class="message me">
+                                        <div class="bubble">
+                                            Bir şeyler yazmayı deneyin..
+                                        </div>
+                                        <div class="time">∞ - ∞</div>
+                                    </div>
+                                    <div class="message me">
+                                        <div class="bubble">
+                                            <img style="width:276px !important; height:auto !important;" src="~/incontent/1667210304192.jpeg" />
+                                        </div>
+                                        <div class="time">∞ - ∞</div>
+                                    </div>
+
+
+
+
+
+
+                                </div>
+                                <div class="message-form">
+                                    <ul>
+
+                                        <li class="input">
+                                            <input id="message_input" type="text" placeholder="Bir şeyler yaz..">
+                                        </li>
+                                        <li class="emoji-btn">
+                                            <a href="#" id="" onclick="uploadFile()"><i class="fa fa-paper-plane" aria-hidden="true"></i></a>
+                                        </li>
+                                        <li class="sound-btn">
+                                            <a href="#" id="startRecordBtn">
+                                                <i class="fa fa-microphone" aria-hidden="true"></i>
+                                            </a>
+                                        </li>
+                                        <li class="sound-btn">
+                                            <a href="#" id="stopRecordBtn">
+                                                <i class="fa fa-microphone-slash" aria-hidden="true"></i>
+                                            </a>
+                                        </li>
+                                        <li class="image-btn">
+                                            <input type="file" id="fileInput" class="file-input">
+                                            <label for="fileInput" class="file-input-label" style="">
+                                                <i class="fa fa-image" aria-hidden="true"></i>
+
+                                            </label>
+                                        </li>
+
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+
+
+
+@section Scripts{
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/cartHub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        async function start() {
+            try {
+                await connection.start();
+                console.log("connected");
+            } catch (err) {
+                console.log(err);
+                setTimeout(start, 5000);
+            }
+        };
+
+        connection.onclose(async () => {
+            await start();
+        });
+
+        start();
+
+
+        $().ready(function () {
+            connection.on("ReceiveMessage", function (name, message) {
+                console.log(name + " " + message);
+                if ("@User.Identity.Name" == name) {
+                    $("#messages").append('<div class="message me"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                } else {
+                    $("#messages").append('<div class="message"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                }
+            });
+        });
+
+
+
+
+        function uploadFile() {
+            var message = $("#message_input").val();
+            var fileInputValue = $("#fileInput").val();
+
+            if (fileInputValue.length != 0) {
+
+                var fileInput = document.getElementById('fileInput');
+                var file = fileInput.files[0];
+                var formData = new FormData();
+                formData.append('file', file);
+
+                $.ajax({
+                    url: '/Customer/Home/Upload',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    type: 'POST',
+                    success: function (data) {
+                        try {
+                            var name = "@User.Identity.Name"
+                            var message = data;
+                            connection.invoke("SendImageToAdmin", name, message);
+                            $("#messages").append('<div class="message me"><div class="bubble"><img style="width:276px !important; height:auto !important;" src="/incontent/' + (data) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                });
+
+            }
+
+            if (message.length != 0) {
+                //$("#btnSendMessage").click(function () {
+                try {
+                    var name = "@User.Identity.Name"
+                    var message = $("#message_input").val();
+                    connection.invoke("SendMessageToAdmin", "@User.Identity.Name", message);
+                    $("#messages").append('<div class="message me"><div class="bubble">' + message + '</div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                } catch (err) {
+                    console.log(err);
+                }
+                //});
+            }
+            uploadRecording();
+
+        }
+
+        $().ready(function () {
+            connection.on("ReceiveImage", function (name, message) {
+
+                try {
+                    if ("@User.Identity.Name" == name) {
+                        $("#messages").append('<div class="message me"><div class="bubble"><img style="width:276px !important; height:auto !important;" src="/incontent/' + (message) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                    } else {
+                        $("#messages").append('<div class="message"><div class="bubble"><img style="width:276px !important; height:auto !important;" src="/incontent/' + (message) + '" /> </div><div class="time">' + name + ' - @DateTime.Now</div></div>');
+                    }
+                } catch (err) {
+                    console.log(err);
+                }
+
+            });
+        });
+
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        const startRecordBtn = document.getElementById('startRecordBtn');
+        const stopRecordBtn = document.getElementById('stopRecordBtn');
+        const recordedAudio = document.getElementById('recordedAudio');
+
+        startRecordBtn.addEventListener('click', startRecording);
+        stopRecordBtn.addEventListener('click', stopRecording);
+
+        function startRecording() {
+            const constraints = { audio: true };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+                    mediaRecorder.start();
+                })
+                .catch(error => {
+                    console.error('Error accessing microphone:', error);
+                });
+
+            startRecordBtn.disabled = true;
+            stopRecordBtn.disabled = false;
+        }
+
+
+
+        function stopRecording() {
+            mediaRecorder.stop();
+
+            startRecordBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+        }
+
+        function uploadRecording() {
+            stopRecording();
+
+            if (recordedChunks.length === 0) {
+                console.error('No recorded data available.');
+                return;
+            }
+
+            const blob = new Blob(recordedChunks, { type: 'audio/wav' });
+
+            function generateRandomString(length) {
+                var result = '';
+                var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+                for (var i = 0; i < length; i++) {
+                    result += characters.charAt(Math.floor(Math.random() * characters.length));
+                }
+                return result;
+            }
+
+            var fileName = 'recorded' + generateRandomString(5) + '.wav';
+            const formData = new FormData();
+            formData.append('voiceFile', blob, fileName);
+
+            $.ajax({
+                url: '/Customer/Home/UploadSound',
+                data: formData,
+                processData: false,
+                contentType: false,
+                type: 'POST',
+                success: function (data) {
+                    console.log(data);
+                    var urlCopy = URL.createObjectURL(blob);
+                    var path = "/soundContent/" + data;
+                    console.log(data);
+                    try {
+                        var name = "@User.Identity.Name";
+                        connection.invoke("SendSoundToAdmin", name, path);
+                        $("#messages").append('<div class="message me"><div class="bubble"><audio src="' + urlCopy + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                        console.log("invoke sendsoundtoadmin");
+                    } catch (err) {
+                        console.log(err);
+                    }
+                    recordedAudio.src = URL.createObjectURL(blob);
+
+
+
+                }
+            });
+
+            recordedChunks = [];
+            recordedAudio.src = '';
+        }
+
+
+        $().ready(function () {
+            connection.on("ReceiveSound", function (name, message) {
+
+                try {
+                    if ("@User.Identity.Name" == name) {
+                        $("#messages").append('<div class="message me"><div class="bubble"><audio src="' + message + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                    } else {
+                        $("#messages").append('<div class="message"><div class="bubble"><audio src="' + message + '" controls id = "recordedAudio" > </audio></div > <div class="time" > ' + name + ' - @DateTime.Now</div></div > ');
+                    }
+                } catch (err) {
+                    console.log(err);
+                }
+
+            });
+        });
+
+    </script>
+}
+
